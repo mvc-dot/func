@@ -87,8 +87,9 @@ button { cursor: pointer; }
 .field .hint { font-size: 14px; color: var(--muted); margin-top: 4px; }
 .input, .select {
   width: 100%; padding: 13px 14px; border: 1.5px solid var(--line); border-radius: var(--r-sm);
-  background: var(--card); font-size: 17px;
+  background: var(--card); color: var(--ink); font-size: 17px; /* explicit: inside .ticket the inherited color is the ticket's dark ink */
 }
+.input::placeholder { color: var(--muted); }
 .input:focus, .select:focus { border-color: var(--ink); outline: none; }
 .btn {
   border: 0; border-radius: 999px; padding: 14px 22px; font-weight: 700; font-size: 17px;

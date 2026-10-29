@@ -3,6 +3,7 @@
 Private, expiring event rooms on Nostr. Host creates a room and shares a QR code. Guests scan it, pick a name, and share an encrypted chat and photo stream. No accounts, no backend of our own beyond a small photo server. See README.md for the full design and known limits.
 
 ## Live
+- Repo: https://github.com/mvc-dot/func (private)
 - App: https://func.rsvp (Cloudflare Pages project `func`; raw host https://func-28u.pages.dev)
 - Photo server: https://media.func.rsvp (Cloudflare Worker `func-media`, R2 bucket `func-media`)
 - Official Func Nostr account: `npub1ph5cm4sdsvnrw29dnt3uefdmt5tputk7w9z2xuam7wvq5pdk8emsx85xe4`. Its private key exists only as the Worker secret `NOSTR_NSEC` on `func-media`. Never put it in the repo, a log, or chat.

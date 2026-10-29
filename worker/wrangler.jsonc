@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "func-media",
+  "main": "src/index.js",
+  "compatibility_date": "2026-06-01",
+  "r2_buckets": [{ "binding": "BLOBS", "bucket_name": "func-media" }],
+  "routes": [{ "pattern": "media.func.rsvp", "custom_domain": true }],
+  "triggers": { "crons": ["17 4 * * *"] },
+  "vars": { "PUBLIC_URL": "https://media.func.rsvp" },
+  "observability": { "enabled": true }
+}

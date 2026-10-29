@@ -1,0 +1,25 @@
+{
+  "name": "stub",
+  "version": "0.1.0",
+  "description": "Private, expiring event rooms on Nostr",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node build.mjs && node test/e2e.mjs"
+  },
+  "dependencies": {
+    "jszip": "^3.10.2",
+    "nostr-tools": "^2.25.4",
+    "qrcode-generator": "^2.0.4"
+  },
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "playwright": "^1.48.0",
+    "esbuild": "^0.28.2",
+    "ws": "^8.22.0",
+    "https-proxy-agent": "^9.1.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

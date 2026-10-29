@@ -39,7 +39,7 @@ Any static host works, as long as it serves over HTTPS. The camera upload and cl
 
 - **Anyone with the link can read and post.** A forwarded link is a full invite. Treat it like a party's group chat link.
 - **Metadata is visible to relays.** They can see a room tag, throwaway keys and timing, but not names or content.
-- **Photos are kept 30 days.** `media.func.rsvp` deletes blobs 30 days after upload and caps each at 10 MB. If it is unreachable the app falls back to `nostr.download`, whose retention is not guaranteed. Other free Blossom hosts (Primal, nostr.build) reject encrypted files.
+- **Photos are kept 30 days.** `media.func.rsvp` expires blobs 30 days after upload, caps each at 10 MB, and rate limits uploads per address and per key. If it is unreachable the app falls back to `nostr.download`, whose retention is not guaranteed. Other free Blossom hosts (Primal, nostr.build) reject encrypted files.
 - **No notifications.** Guests see new posts only while the page is open.
 - **Messages are cut off at 1,000 per room** on initial load (`limit: 1000`).
 

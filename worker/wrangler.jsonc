@@ -4,8 +4,14 @@
   "main": "src/index.js",
   "compatibility_date": "2026-06-01",
   "r2_buckets": [{ "binding": "BLOBS", "bucket_name": "func-media" }],
+  // Blob expiry is an R2 lifecycle rule on the bucket (expire-after-30-days), not a cron:
+  //   wrangler r2 bucket lifecycle list func-media
+  "ratelimits": [
+    { "name": "IP_LIMIT", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+    { "name": "KEY_LIMIT", "namespace_id": "1002", "simple": { "limit": 20, "period": 60 } }
+  ],
+  "triggers": { "crons": [] },
   "routes": [{ "pattern": "media.func.rsvp", "custom_domain": true }],
-  "triggers": { "crons": ["17 4 * * *"] },
   "vars": { "PUBLIC_URL": "https://media.func.rsvp" },
   "observability": { "enabled": true }
 }

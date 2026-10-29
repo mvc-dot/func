@@ -1,7 +1,7 @@
 // Func media: a minimal Blossom server (BUD-01, BUD-02) on a Cloudflare Worker + R2.
 // PUT /upload with a kind 24242 Nostr auth event stores a blob under its sha256.
 // GET /<sha256> serves it. DELETE /<sha256> lets the uploader remove it.
-// A daily cron deletes anything older than RETENTION_DAYS.
+// Blobs expire after RETENTION_DAYS via an R2 lifecycle rule on the bucket. Uploads are rate limited per IP and per key.
 import { verifyEvent } from 'nostr-tools/pure';
 
 export const MAX_BYTES = 10 * 1024 * 1024;
@@ -13,7 +13,7 @@ const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, HEAD, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Authorization, Content-Type, Content-Length, Range, X-SHA-256, X-Content-Length, X-Content-Type',
-  'Access-Control-Expose-Headers': 'Content-Length, Content-Type, Content-Range, Accept-Ranges, ETag, X-Reason',
+  'Access-Control-Expose-Headers': 'Content-Length, Content-Type, Content-Range, Accept-Ranges, ETag, X-Reason, Retry-After',
   'Access-Control-Max-Age': '86400',
 };
 const now = () => Math.floor(Date.now() / 1000);
@@ -22,6 +22,8 @@ const BLOB_PATH = /^\/([0-9a-f]{64})(\.[a-z0-9]{1,8})?$/i;
 
 const fail = (status, reason) =>
   new Response(reason, { status, headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8', 'X-Reason': reason } });
+const tooMany = reason =>
+  new Response(reason, { status: 429, headers: { ...CORS, 'Content-Type': 'text/plain; charset=utf-8', 'X-Reason': reason, 'Retry-After': '60' } });
 const json = (obj, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 
@@ -64,10 +66,17 @@ async function readLimited(request, limit) {
 
 const descriptor = (base, sha256, size, type, uploaded) => ({ url: `${base}/${sha256}`, sha256, size, type, uploaded });
 const publicBase = (env, url) => (env.PUBLIC_URL || url.origin).replace(/\/$/, '');
+// Rate limiting bindings (see wrangler.jsonc). A missing binding means no limit, so local runs still work.
+async function overLimit(binding, key) {
+  if (!binding || !key) return false;
+  try { return !(await binding.limit({ key })).success; } catch { return false; }
+}
 
 async function upload(request, env, url) {
   const auth = checkAuth(request, 'upload');
   if (auth.error) return fail(401, auth.error);
+  if (await overLimit(env.IP_LIMIT, request.headers.get('cf-connecting-ip'))) return tooMany('too many uploads from this address');
+  if (await overLimit(env.KEY_LIMIT, auth.ev.pubkey)) return tooMany('too many uploads from this key');
   const declared = Number(request.headers.get('content-length'));
   if (declared > MAX_BYTES) return fail(413, `blob exceeds ${MAX_BYTES} bytes`);
   const body = await readLimited(request, MAX_BYTES);
@@ -126,19 +135,6 @@ async function deleteBlob(request, env, sha256) {
   return json({ deleted: sha256 });
 }
 
-// Deletes every object uploaded more than RETENTION_DAYS ago. Returns how many were removed.
-export async function sweep(env, retentionDays = RETENTION_DAYS) {
-  const cutoff = Date.now() - retentionDays * 86400 * 1000;
-  const old = []; let cursor;
-  do { // list everything first, then delete, so deletions never disturb the listing
-    const page = await env.BLOBS.list({ cursor, limit: 1000 });
-    for (const o of page.objects) if (o.uploaded.getTime() < cutoff) old.push(o.key);
-    cursor = page.truncated ? page.cursor : undefined;
-  } while (cursor);
-  for (let i = 0; i < old.length; i += 1000) await env.BLOBS.delete(old.slice(i, i + 1000));
-  return old.length;
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -156,8 +152,5 @@ export default {
     if (method === 'GET' || method === 'HEAD') return getBlob(request, env, sha256, method === 'HEAD');
     if (method === 'DELETE') return deleteBlob(request, env, sha256);
     return fail(405, 'method not allowed');
-  },
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(sweep(env).then(n => console.log(`sweep removed ${n} blobs older than ${RETENTION_DAYS} days`)));
   },
 };

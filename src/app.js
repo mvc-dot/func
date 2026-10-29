@@ -310,6 +310,12 @@ function renderLanding() {
       <li>Guests scan it, type their name and start posting. Nothing to install.</li>
       <li>Messages and photos are encrypted with a key that only exists in the invite link.</li>
     </ol>
+    <section class="about" aria-labelledby="about-h">
+      <h2 id="about-h">About</h2>
+      <p>Func is built on <a href="https://nostr.com" target="_blank" rel="noopener">Nostr</a>, an open protocol where messages are signed notes passed through public relays that anyone can run. Func has no server or database of its own for your chat. Each room is a set of encrypted notes on those relays, and the only key is in the invite link, so the relays store ciphertext they cannot read. The notes carry an expiry, and the relays drop them after the room closes.</p>
+      <p>That is the point. A group chat for one night should not need an account, a company's database, or anything that outlives the party. Open protocols make that possible for a single static page.</p>
+      <p>The whole app is one HTML file on Cloudflare Pages. Photos go to a small Blossom server we run on a Cloudflare Worker and R2, where they live for 30 days. It was built in an afternoon with Claude Code. The code is on <a href="https://github.com/mvc-dot/func" target="_blank" rel="noopener">GitHub</a>.</p>
+    </section>
   </main>`;
   $('#rname').focus();
   $('#create').addEventListener('submit', async e => {

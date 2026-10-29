@@ -18,7 +18,8 @@ Private, expiring event rooms on Nostr. Host creates a room and shares a QR code
 
 ## Deploy
 - App: `npm run deploy` (builds, then `wrangler pages deploy dist --project-name func --branch main`). `dist/` is the only thing deployed to Pages. There are no Pages functions.
-- Photo server: `npm run deploy:media` (`wrangler deploy -c worker/wrangler.jsonc`). The custom domain `media.func.rsvp`, the R2 binding, and the daily cron are all declared in `worker/wrangler.jsonc`, so a deploy keeps them in sync.
+- Photo server: `npm run deploy:media` (`wrangler deploy -c worker/wrangler.jsonc`). The custom domain `media.func.rsvp`, the R2 binding, and the rate limit bindings are all declared in `worker/wrangler.jsonc`, so a deploy keeps them in sync.
+- Blob expiry is a lifecycle rule on the bucket, set once with `npx wrangler r2 bucket lifecycle add func-media expire-after-30-days --expire-days 30`. Check it with `npx wrangler r2 bucket lifecycle list func-media`.
 - Secrets: pipe the value in, never paste it into a file: `printf %s "$VALUE" | npx wrangler secret put NAME -c worker/wrangler.jsonc`
 - DNS for `func.rsvp` is a proxied CNAME to `func-28u.pages.dev`. The Worker domain record is managed by Cloudflare. The wrangler OAuth token cannot edit DNS; `~/.config/cloudflare/dwarfnebula.token` can.
 
@@ -34,13 +35,14 @@ Private, expiring event rooms on Nostr. Host creates a room and shares a QR code
 - Implements BUD-01 and BUD-02: `PUT /upload` (kind 24242 auth with `t=upload` and an `x` tag equal to the body sha256), `GET`/`HEAD /<sha256>[.ext]`, `DELETE /<sha256>` (uploader's key only), and the BUD-06 `HEAD /upload` size check. There is no `/list`.
 - CORS is open to any origin. Any content type is accepted, including `application/octet-stream`. Uploads are capped at 10 MB, checked from `Content-Length` and again while streaming.
 - Blobs are stored under their sha256 with `customMetadata` `pubkey` and `uploaded`. Responses are immutable-cacheable. Range requests return 206 only when a `Range` header was sent.
-- Cron `17 4 * * *` UTC runs `sweep()`, which lists everything first and then deletes blobs uploaded more than 30 days ago. Rooms keep events readable for 3 days after close, so this leaves ample margin.
+- R2 deletes each blob 30 days after upload through the bucket's lifecycle rule. Rooms keep events readable for 3 days after close, so this leaves ample margin. There is no cron and no sweep code.
+- Uploads are rate limited with the Workers rate limiting bindings: 60 per minute per client IP (`IP_LIMIT`) and 20 per minute per Nostr key (`KEY_LIMIT`). Over the limit returns 429 with `Retry-After: 60`. Limits are checked after the auth event verifies, so junk requests do not consume them. Missing bindings (local runs, tests without a mock) mean no limit.
 - Add a case to `test/blossom.mjs` for any behavior change, then `npm test` and `npm run deploy:media`.
 
 ## Constraints learned from live testing (Oct 2026)
 - Relays that accept these kinds: damus, nos.lol, primal, snort. relay.nos.social rejects custom kinds. offchain.pub rejects large events from keys outside its web of trust.
 - Public Blossom hosts: only nostr.download accepts encrypted application/octet-stream. Primal, nostr.build/blossom.band, nostrcheck and 24242.io sniff content and reject non-images. Don't disguise ciphertext as image/jpeg. That is why we run `media.func.rsvp`.
-- Cloudflare: Worker cron triggers need the account to have a workers.dev subdomain (it is `mvc-corp.workers.dev`). Passing `range: request.headers` to R2 `get` marks every response as ranged, so only pass it when the request has a `Range` header.
+- Cloudflare: Worker cron triggers need the account to have a workers.dev subdomain (it is `mvc-corp.workers.dev`; no cron is used now). Passing `range: request.headers` to R2 `get` marks every response as ranged, so only pass it when the request has a `Range` header. Rate limit bindings only allow 10 s or 60 s periods and count per Cloudflare location, so treat them as approximate.
 
 ## Conventions
 - Keep the output a single static file with no CDN script dependencies. Google Fonts is the only external request.

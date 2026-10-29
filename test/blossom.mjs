@@ -1,6 +1,6 @@
 // Tests the Blossom Worker (worker/src/index.js) in-process against a mock R2 bucket.
-// Covers BUD-01 auth + CORS, BUD-02 upload/get/delete, the 10 MB cap, and the 30-day sweep.
-import worker, { sweep, MAX_BYTES } from '../worker/src/index.js';
+// Covers BUD-01 auth + CORS, BUD-02 upload/get/delete, the 10 MB cap, and per-IP / per-key rate limits.
+import worker, { MAX_BYTES } from '../worker/src/index.js';
 import { generateSecretKey, getPublicKey, finalizeEvent } from 'nostr-tools/pure';
 import { createHash, randomBytes } from 'node:crypto';
 
@@ -95,16 +95,23 @@ ok(r.status === 401, 'upload auth cannot be reused for delete');
 r = await call('/' + x, { method: 'DELETE', headers: { Authorization: authFor('delete', x) } });
 ok(r.status === 200 && (await call('/' + x)).status === 404, 'the uploader can delete, and the blob is gone');
 
-// ---- 30-day sweep ----
-const sweepEnv = { BLOBS: new MockR2() };
-const day = 86400 * 1000;
-for (let i = 0; i < 2300; i++) {
-  const k = sha(Buffer.from('obj' + i)); await sweepEnv.BLOBS.put(k, Buffer.from('x'), { customMetadata: { pubkey: pk } });
-  sweepEnv.BLOBS.m.get(k).uploaded = new Date(Date.now() - (i < 1500 ? 31 : 29) * day);
+// ---- rate limits (mock of the Workers rate limiting binding) ----
+class MockLimiter {
+  constructor(limit) { this.limit_ = limit; this.counts = new Map(); }
+  async limit({ key }) { const n = (this.counts.get(key) || 0) + 1; this.counts.set(key, n); return { success: n <= this.limit_ }; }
 }
-const removed = await sweep(sweepEnv);
-ok(removed === 1500 && sweepEnv.BLOBS.m.size === 800, `sweep removed ${removed} blobs older than 30 days across pages and kept the rest`);
-const pending = []; await worker.scheduled({}, sweepEnv, { waitUntil: p => pending.push(p) }); await Promise.all(pending);
-ok(sweepEnv.BLOBS.m.size === 800, 'scheduled handler runs the sweep without touching newer blobs');
+const rlEnv = { BLOBS: new MockR2(), PUBLIC_URL: BASE, IP_LIMIT: new MockLimiter(3), KEY_LIMIT: new MockLimiter(2) };
+const rl = (bytes, key, ip) => worker.fetch(new Request(BASE + '/upload', { method: 'PUT', headers: { Authorization: authFor('upload', sha(bytes), key), 'Content-Type': 'application/octet-stream', 'CF-Connecting-IP': ip }, body: bytes }), rlEnv);
+const k1 = generateSecretKey(), k2 = generateSecretKey(), k3 = generateSecretKey();
+r = await rl(randomBytes(10), k1, '1.1.1.1'); ok(r.status === 200, 'first upload from a key is accepted');
+r = await rl(randomBytes(10), k1, '1.1.1.1'); ok(r.status === 200, 'second upload from the same key is accepted');
+r = await rl(randomBytes(10), k1, '1.1.1.1'); ok(r.status === 429 && /key/.test(r.headers.get('x-reason')) && r.headers.get('retry-after') === '60', 'third upload from the same key is rate limited with 429 and Retry-After');
+r = await rl(randomBytes(10), k2, '2.2.2.2'); ok(r.status === 200, 'a different key from a different address is unaffected');
+r = await rl(randomBytes(10), k3, '1.1.1.1'); ok(r.status === 429 && /address/.test(r.headers.get('x-reason')), 'a new key from an exhausted address is rate limited per IP');
+ok(rlEnv.BLOBS.m.size === 3, 'rate-limited uploads stored nothing');
+r = await worker.fetch(new Request(BASE + '/upload', { method: 'PUT', headers: { Authorization: 'Nostr nope', 'CF-Connecting-IP': '3.3.3.3' }, body: 'x' }), rlEnv);
+ok(r.status === 401 && !rlEnv.IP_LIMIT.counts.has('3.3.3.3'), 'bad auth is rejected before it counts against the limit');
+r = await worker.fetch(new Request(BASE + '/upload', { method: 'PUT', headers: { Authorization: authFor('upload', sha(Buffer.from('nolimit'))), 'Content-Type': 'application/octet-stream' }, body: Buffer.from('nolimit') }), { BLOBS: new MockR2(), PUBLIC_URL: BASE });
+ok(r.status === 200, 'without rate limit bindings uploads still work (local dev)');
 
 console.log(process.exitCode ? 'blossom tests FAILED' : 'blossom tests passed');

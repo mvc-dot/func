@@ -1,4 +1,4 @@
-# Stub
+# Func
 
 Private, expiring event rooms on Nostr. Host creates a room and shares a QR code. Guests scan it, pick a name, and share an encrypted chat and photo stream. No accounts, no backend. See README.md for the full design and known limits.
 
@@ -9,13 +9,13 @@ Private, expiring event rooms on Nostr. Host creates a room and shares a QR code
 - `node test/live-e2e.mjs` runs the same flow against the real public relays and photo host. Run it before deploying.
 
 ## Deploy
-- Cloudflare Pages, project name `stub`: `npm run build && npx wrangler pages deploy dist --project-name stub`
-- Intended custom domain: `stub.dwarfnebula.dev` (the dwarfnebula.dev zone is on this Cloudflare account)
+- Cloudflare Pages, project name `func`: `npm run build && npx wrangler pages deploy dist --project-name func`
+- Custom domain: `func.rsvp` (zone is on this Cloudflare account)
 - `dist/` is the only thing deployed. There are no server functions.
 
 ## Architecture (all in src/app.js)
 - Invite link `#r=<16-byte secret, base64url>&h=<host pubkey, base64url>`. The fragment never reaches servers.
-- AES-256-GCM key comes from HKDF(secret). Room id is sha256("stub:id:"+secret), first 32 hex chars, used as the `t` tag.
+- AES-256-GCM key comes from HKDF(secret). Room id is sha256("func:id:"+secret), first 32 hex chars, used as the `t` tag.
 - kind 4333 is an encrypted message, photo, or hide event. kind 34333 is host-signed room meta (name, close time), `d` = room id.
 - Every event has a NIP-40 `expiration` = close time + 3 days.
 - Photos are resized and encrypted, then uploaded to Blossom (BUD-02 PUT /upload, kind 24242 auth). If the upload fails, a ~35 KB inline copy goes in the event.

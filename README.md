@@ -1,4 +1,4 @@
-# Stub
+# Func
 
 A private room for an event. The host creates a room and puts the QR code on a table. Guests scan it, type a name, and they're in a shared chat and photo stream. No app, no signup. The room closes at a set time.
 
@@ -8,12 +8,12 @@ Built on Nostr. The whole app is one static file (`dist/index.html`, ~180 KB), w
 
 Option A, dashboard:
 1. Cloudflare dashboard → Workers & Pages → Create → Pages → **Upload assets**.
-2. Name the project `stub` and drag in the `dist` folder.
-3. Under Custom domains, add something like `stub.dwarfnebula.dev`.
+2. Name the project `func` and drag in the `dist` folder.
+3. Under Custom domains, add something like `func.rsvp`.
 
 Option B, command line:
 ```
-npx wrangler pages deploy dist --project-name stub
+npx wrangler pages deploy dist --project-name func
 ```
 
 Any static host works, as long as it serves over HTTPS. The camera upload and clipboard need a secure origin.

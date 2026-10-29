@@ -1,4 +1,4 @@
-// Stub — a private, expiring room for an event, built on Nostr.
+// Func — a private, expiring room for an event, built on Nostr.
 // Everything a guest sees is encrypted with a key that lives only in the invite link's #fragment,
 // so relays and photo hosts store ciphertext they cannot read.
 import { generateSecretKey, getPublicKey, finalizeEvent, verifyEvent } from 'nostr-tools/pure';
@@ -26,8 +26,8 @@ const concat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.len
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const sha256 = async b => new Uint8Array(await crypto.subtle.digest('SHA-256', b));
 const store = {
-  get(k) { try { return JSON.parse(localStorage.getItem('stub:' + k)); } catch { return null; } },
-  set(k, v) { try { localStorage.setItem('stub:' + k, JSON.stringify(v)); } catch {} },
+  get(k) { try { return JSON.parse(localStorage.getItem('func:' + k)); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem('func:' + k, JSON.stringify(v)); } catch {} },
 };
 const hue = pk => parseInt(pk.slice(0, 6), 16) % 360;
 const initial = n => (n || '?').trim().charAt(0).toUpperCase() || '?';
@@ -43,10 +43,10 @@ const icon = {
 
 // ---------- room crypto ----------
 async function roomKeys(secret) {
-  const roomId = hex(await sha256(concat(te.encode('stub:id:'), secret))).slice(0, 32);
+  const roomId = hex(await sha256(concat(te.encode('func:id:'), secret))).slice(0, 32);
   const ikm = await crypto.subtle.importKey('raw', secret, 'HKDF', false, ['deriveKey']);
   const key = await crypto.subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt: te.encode('stub-v1'), info: te.encode('stub:enc') },
+    { name: 'HKDF', hash: 'SHA-256', salt: te.encode('func-v1'), info: te.encode('func:enc') },
     ikm, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
   return { roomId, key };
 }
@@ -283,7 +283,7 @@ async function photoURL(id) {
 
 // ---------- rendering: landing ----------
 function renderLanding() {
-  document.title = 'Stub — a private room for your event';
+  document.title = 'Func — a private room for your event';
   $('#app').innerHTML = `
   <main class="landing">
     <h1>A private room for your event</h1>
@@ -342,7 +342,7 @@ async function retryMeta(ev) { for (let i = 0; i < 6; i++) { await new Promise(r
 // ---------- rendering: join ----------
 function renderJoin() {
   const name = S.meta?.name;
-  document.title = name ? `${name} — Stub` : 'Stub';
+  document.title = name ? `${name} — Func` : 'Func';
   $('#app').innerHTML = `
   <main class="join">
     ${ticketHTML()}
@@ -384,7 +384,7 @@ function ticketHTML() {
 
 // ---------- rendering: room ----------
 function renderRoom() {
-  document.title = S.meta ? `${S.meta.name} — Stub` : 'Stub';
+  document.title = S.meta ? `${S.meta.name} — Func` : 'Func';
   $('#app').innerHTML = `
   <div class="room">
     <div class="room-head" id="head"></div>
@@ -407,7 +407,7 @@ function renderRoom() {
 }
 function renderHeader() {
   const head = $('#head'); if (!head) return;
-  document.title = S.meta ? `${S.meta.name} — Stub` : 'Stub';
+  document.title = S.meta ? `${S.meta.name} — Func` : 'Func';
   head.innerHTML = ticketHTML() + (S.pool && S.pool.openCount === 0 && S.everConnected ? '<div class="banner">Offline. Your messages will send when the connection comes back.</div>' : '');
 }
 function renderStatus() { if (S.pool?.openCount) S.everConnected = true; S.me ? renderHeader() : null; }
@@ -512,7 +512,7 @@ async function saveAll() {
         zip.file(`${new Date(ev.created_at * 1000).toISOString().slice(0, 19).replace(/[:T]/g, '-')}_${who}_${id.slice(0, 6)}.jpg`, b); } catch {}
     }
     const out = await zip.generateAsync({ type: 'blob' });
-    download(out, `${(S.meta?.name || 'stub').replace(/[^\w-]+/g, '-')}-photos.zip`);
+    download(out, `${(S.meta?.name || 'func').replace(/[^\w-]+/g, '-')}-photos.zip`);
     toast(`Saved ${Object.keys(zip.files).length} photos`);
   } finally { renderBody(); }
 }
@@ -627,5 +627,5 @@ async function openLightbox(id) {
 
 // ---------- go ----------
 const theme = store.get('theme'); if (theme) document.documentElement.dataset.theme = theme;
-window.__stub = S; // handy for debugging in the console
+window.__func = S; // handy for debugging in the console
 boot();

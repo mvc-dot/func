@@ -9,8 +9,8 @@ const mk = async () => { const c = await b.newContext(devices['iPhone 13']); con
 const host = await mk(); await host.goto('http://localhost:7780/');
 await host.fill('#rname', 'Live relay test'); await host.fill('#hname', 'Host'); await host.click('button[type=submit]');
 await host.waitForSelector('.linkbox'); const link = await host.textContent('.linkbox'); await host.click('#done');
-await host.waitForFunction(() => window.__stub.pool.openCount > 0, null, { timeout: 15000 });
-console.log(el(), 'host connected relays:', await host.evaluate(() => window.__stub.pool.conns.map(c => c.url + '=' + c.open).join(' ')));
+await host.waitForFunction(() => window.__func.pool.openCount > 0, null, { timeout: 15000 });
+console.log(el(), 'host connected relays:', await host.evaluate(() => window.__func.pool.conns.map(c => c.url + '=' + c.open).join(' ')));
 await host.fill('#text', 'hello from the real network'); await host.click('#sendb');
 await host.waitForFunction(() => !document.querySelector('.msg.sending'), null, { timeout: 15000 });
 console.log(el(), 'host message accepted:', !(await host.$('.msg.failed')));
@@ -22,7 +22,7 @@ await guest.waitForFunction(() => document.querySelector('.bubble')?.textContent
 console.log(el(), 'guest decrypted host message');
 await guest.setInputFiles('#file', 'test/shots/04-host-chat.png');
 await host.waitForFunction(() => document.querySelector('.photo img:not(.blur)'), null, { timeout: 40000 });
-const p = await host.evaluate(() => [...window.__stub.items.values()].find(x => x.p.t === 'photo').p);
+const p = await host.evaluate(() => [...window.__func.items.values()].find(x => x.p.t === 'photo').p);
 console.log(el(), 'host sees decrypted photo via', p.url || 'inline fallback');
 await host.screenshot({ path: 'test/shots/10-live.png' });
 console.log('page errors:', errs);

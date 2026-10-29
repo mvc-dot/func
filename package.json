@@ -1,5 +1,5 @@
 {
-  "name": "stub",
+  "name": "func",
   "version": "0.1.0",
   "description": "Private, expiring event rooms on Nostr",
   "scripts": {

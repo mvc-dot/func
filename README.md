@@ -4,7 +4,7 @@ A private room for an event. The host creates a room and puts the QR code on a t
 
 Built on Nostr. The whole app is one static file (`dist/index.html`, ~180 KB), with no server and no database of its own.
 
-Live at **https://func.rsvp**. Photos go to our own Blossom server at **https://media.func.rsvp**.
+Live at **https://func.rsvp**. Rooms live on our own relay at **wss://relay.func.rsvp** plus public relays, and photos go to our own Blossom server at **https://media.func.rsvp**.
 
 ## Deploy (Cloudflare Pages, ~5 minutes)
 
@@ -27,7 +27,7 @@ Any static host works, as long as it serves over HTTPS. The camera upload and cl
 - **Encryption.** Every message, photo and the room name is encrypted (AES-256-GCM) with a key derived from the room secret. Relays and the photo host only ever store ciphertext.
 - **Identity.** Each guest gets a throwaway Nostr key, generated on the spot and kept in their browser for that room only.
 - **Transport.**
-  - Messages are Nostr events (kind 4333), tagged with a room id that is a hash of the secret. They're published to 4 public relays: damus, nos.lol, primal, snort.
+  - Messages are Nostr events (kind 4333), tagged with a room id that is a hash of the secret. They're published to our own relay (`relay.func.rsvp`, strfry, see `relay/`) and to 4 public relays as backup: damus, nos.lol, primal, snort.
   - Room details are a host-signed addressable event (kind 34333). Only the host's key in the link can set the name or close time.
 - **Photos.**
   - Resized to 1600 px, encrypted, and uploaded to our Blossom server (`media.func.rsvp`, a Cloudflare Worker on R2, see `worker/`). `nostr.download` is the fallback.
@@ -50,8 +50,9 @@ npm install
 npm run build        # → dist/index.html
 npm test             # Blossom worker tests + local relay + photo host + two headless browsers
 npm run test:blossom # just the worker, in-process against a mock R2 bucket
+npm run test:relay   # smoke-tests a running relay (RELAY=wss://relay.func.rsvp for the live one)
 ```
 
 `?relays=ws://...&blossom=http://...` overrides the network, which the tests use. `test/live-e2e.mjs` runs the same flow against the real public relays.
 
-Files: `src/app.js` (all app logic), `src/styles.css`, `src/index.template.html`, `build.mjs`, `worker/src/index.js` (Blossom server), `worker/wrangler.jsonc`, `test/`.
+Files: `src/app.js` (all app logic), `src/styles.css`, `src/index.template.html`, `build.mjs`, `worker/src/index.js` (Blossom server), `worker/wrangler.jsonc`, `relay/` (strfry config, write policy, launchd services), `test/`.

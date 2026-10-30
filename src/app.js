@@ -9,7 +9,7 @@ const KIND_MSG = 4333;      // regular event: encrypted chat message / photo / h
 const KIND_META = 34333;    // addressable event: encrypted room details, host-signed
 const GRACE = 3 * 86400;    // events and photos stay readable this long after the room closes
 const qp = new URLSearchParams(location.search);
-const RELAYS = (qp.get('relays') || 'wss://relay.damus.io,wss://nos.lol,wss://relay.primal.net,wss://relay.snort.social').split(',');
+const RELAYS = (qp.get('relays') || 'wss://relay.func.rsvp,wss://relay.damus.io,wss://nos.lol,wss://relay.primal.net,wss://relay.snort.social').split(',');
 const BLOSSOM = (qp.get('blossom') || 'https://media.func.rsvp,https://nostr.download').split(',');
 
 // ---------- small utils ----------

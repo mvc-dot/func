@@ -6,10 +6,13 @@
 import { createInterface } from 'node:readline';
 
 const KINDS = new Set([4333, 34333]);     // encrypted room event, host-signed room meta
+const OFFICIAL = '0de98dd60d83263728ad9ae3cca5bb5d161e2ede7144a373bbf3980a05b63e77'; // Func's own account: its profile and notes may live here too
+const OFFICIAL_KINDS = new Set([0, 1, 3, 10002]);
 const MAX_TTL = 45 * 86400;               // rooms last at most 7 days + 3 days grace; leave margin
 const MAX_FUTURE = 15 * 60;               // created_at may lead our clock by this much
 
 function decide(ev) {
+  if (ev.pubkey === OFFICIAL && OFFICIAL_KINDS.has(ev.kind)) return null;
   if (!KINDS.has(ev.kind)) return 'blocked: this relay only stores Func room events';
   const now = Math.floor(Date.now() / 1000);
   if (ev.created_at > now + MAX_FUTURE) return 'invalid: created_at is in the future';

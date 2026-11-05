@@ -29,7 +29,7 @@ Private, expiring event rooms on Nostr. Host creates a room and shares a QR code
 
 ## Relay (relay/)
 - strfry built from source (`~/projects/strfry`, binary copied to `/opt/homebrew/bin/strfry`). Config `relay/strfry.conf`: binds 127.0.0.1:7790, 128 KB max event (inline-photo events are ~50 KB), NIP-40 expiry purge is built into strfry, `realIpHeader = cf-connecting-ip`.
-- `relay/policy.mjs` is the strfry write policy: only kinds 4333 and 34333, an `expiration` tag within 45 days, and a 32-hex room tag. Everything else is rejected with a reason, so the relay cannot fill with other people's notes.
+- `relay/policy.mjs` is the strfry write policy: only kinds 4333 and 34333, an `expiration` tag within 45 days, and a 32-hex room tag. The official Func pubkey may also store kinds 0, 1, 3 and 10002 (its profile and notes), so NIP-05's relay hint resolves. Everything else is rejected with a reason, so the relay cannot fill with other people's notes.
 - Services are user LaunchAgents: `rsvp.func.strfry` and `rsvp.func.cloudflared` (plists in `relay/launchd/`, installed copies in `~/Library/LaunchAgents/`). Logs in `~/Library/Logs/func-relay/`. Data in `~/Library/Application Support/func-relay/strfry-db/`.
   - restart: `launchctl kickstart -k gui/$(id -u)/rsvp.func.strfry`
   - after editing `strfry.conf` most settings reload live; ones marked "restart required" need the kickstart.

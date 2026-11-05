@@ -2,7 +2,8 @@
 // PUT /upload with a kind 24242 Nostr auth event stores a blob under its sha256.
 // GET /<sha256> serves it. DELETE /<sha256> lets the uploader remove it.
 // Blobs expire after RETENTION_DAYS via an R2 lifecycle rule on the bucket. Uploads are rate limited per IP and per key.
-import { verifyEvent } from 'nostr-tools/pure';
+import { verifyEvent, finalizeEvent } from 'nostr-tools/pure';
+import { decode as nip19decode } from 'nostr-tools/nip19';
 
 export const MAX_BYTES = 10 * 1024 * 1024;
 export const RETENTION_DAYS = 30;
@@ -135,6 +136,39 @@ async function deleteBlob(request, env, sha256) {
   return json({ deleted: sha256 });
 }
 
+// POST /admin/publish: signs an event with the official Func key (secret NOSTR_NSEC) and sends it to relays.
+// Guarded by the ADMIN_TOKEN secret. Body: { kind, content, tags?, relays? }. relays: [] signs without publishing.
+const OFFICIAL_RELAYS = ['wss://relay.func.rsvp', 'wss://relay.damus.io', 'wss://nos.lol', 'wss://relay.primal.net', 'wss://relay.snort.social'];
+function sameToken(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length || !a.length) return false;
+  let diff = 0; for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+async function sendToRelay(url, ev) {
+  try {
+    const res = await fetch(url.replace(/^ws/, 'http'), { headers: { Upgrade: 'websocket' } });
+    const ws = res.webSocket; if (!ws) return { url, ok: false, reason: 'no websocket' };
+    ws.accept();
+    return await new Promise(resolve => {
+      const t = setTimeout(() => { ws.close(); resolve({ url, ok: false, reason: 'timeout' }); }, 8000);
+      ws.addEventListener('message', m => { try { const j = JSON.parse(m.data); if (j[0] === 'OK' && j[1] === ev.id) { clearTimeout(t); ws.close(); resolve({ url, ok: !!j[2], reason: j[3] || '' }); } } catch {} });
+      ws.addEventListener('error', () => { clearTimeout(t); resolve({ url, ok: false, reason: 'error' }); });
+      ws.send(JSON.stringify(['EVENT', ev]));
+    });
+  } catch (e) { return { url, ok: false, reason: String(e.message || e) }; }
+}
+async function adminPublish(request, env) {
+  const token = (request.headers.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!env.ADMIN_TOKEN || !env.NOSTR_NSEC || !sameToken(token, env.ADMIN_TOKEN)) return fail(401, 'unauthorized');
+  let body; try { body = await request.json(); } catch { return fail(400, 'body must be JSON'); }
+  if (!Number.isInteger(body.kind) || typeof body.content !== 'string') return fail(400, 'kind (integer) and content (string) are required');
+  const sk = nip19decode(env.NOSTR_NSEC).data;
+  const ev = finalizeEvent({ kind: body.kind, content: body.content, tags: Array.isArray(body.tags) ? body.tags : [], created_at: now() }, sk);
+  const relays = Array.isArray(body.relays) ? body.relays : OFFICIAL_RELAYS;
+  const results = await Promise.all(relays.map(u => sendToRelay(u, ev)));
+  return json({ event: ev, results });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -145,6 +179,7 @@ export default {
       if (method === 'HEAD') return uploadCheck(request);
       return fail(405, 'use PUT /upload');
     }
+    if (url.pathname === '/admin/publish') return method === 'POST' ? adminPublish(request, env) : fail(405, 'use POST');
     if (url.pathname === '/') return json({ name: 'Func media', blossom: ['BUD-01', 'BUD-02'], max_bytes: MAX_BYTES, retention_days: RETENTION_DAYS });
     const m = url.pathname.match(BLOB_PATH);
     if (!m) return fail(404, 'not found');

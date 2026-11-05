@@ -15,11 +15,13 @@ Private, expiring event rooms on Nostr. Host creates a room and shares a QR code
 - `npm run build` builds `dist/index.html`, a single self-contained file with CSS and JS inlined
 - `npm test` builds, then runs `test/blossom.mjs` (the Worker in-process against a mock R2 bucket) and `test/e2e.mjs` (a local relay and Blossom mock from `test/server.mjs` plus host and guest headless browsers). All checks must print `ok`.
 - `npm run test:blossom` runs only the Worker tests
+- `node scripts/stats.mjs` prints usage from our relay (rooms, guests, events). The LaunchAgent `rsvp.func.stats` appends a row nightly to `~/Library/Application Support/func-relay/stats.csv`. This is the only usage history, since rooms expire. The app has no analytics beacon.
+- `node scripts/og.mjs` re-renders the social preview card `src/static/og.png` after copy or colour changes.
 - `npm run test:relay` smoke-tests a running relay (local strfry by default, `RELAY=wss://relay.func.rsvp` for the live one)
 - `node test/live-e2e.mjs` runs the room flow against the real public relays and `media.func.rsvp`. Run it before deploying. Set `HTTPS_PROXY` only if the network needs one.
 
 ## Deploy
-- App: `npm run deploy` (builds, then `wrangler pages deploy dist --project-name func --branch main`). `dist/` is the only thing deployed to Pages. There are no Pages functions.
+- App: `npm run deploy` (builds, then `wrangler pages deploy dist --project-name func --branch main`). `dist/` is the only thing deployed to Pages: `index.html` plus everything in `src/static/` (`og.png`, `_headers`, `.well-known/nostr.json` for NIP-05 `func@func.rsvp`). There are no Pages functions.
 - Photo server: `npm run deploy:media` (`wrangler deploy -c worker/wrangler.jsonc`). The custom domain `media.func.rsvp`, the R2 binding, and the rate limit bindings are all declared in `worker/wrangler.jsonc`, so a deploy keeps them in sync.
 - Blob expiry is a lifecycle rule on the bucket, set once with `npx wrangler r2 bucket lifecycle add func-media expire-after-30-days --expire-days 30`. Check it with `npx wrangler r2 bucket lifecycle list func-media`.
 - Secrets: pipe the value in, never paste it into a file: `printf %s "$VALUE" | npx wrangler secret put NAME -c worker/wrangler.jsonc`
@@ -48,12 +50,16 @@ Private, expiring event rooms on Nostr. Host creates a room and shares a QR code
 - Blobs are stored under their sha256 with `customMetadata` `pubkey` and `uploaded`. Responses are immutable-cacheable. Range requests return 206 only when a `Range` header was sent.
 - R2 deletes each blob 30 days after upload through the bucket's lifecycle rule. Rooms keep events readable for 3 days after close, so this leaves ample margin. There is no cron and no sweep code.
 - Uploads are rate limited with the Workers rate limiting bindings: 60 per minute per client IP (`IP_LIMIT`) and 20 per minute per Nostr key (`KEY_LIMIT`). Over the limit returns 429 with `Retry-After: 60`. Limits are checked after the auth event verifies, so junk requests do not consume them. Missing bindings (local runs, tests without a mock) mean no limit.
+- `POST /admin/publish` signs an event with the official key (`NOSTR_NSEC`) and sends it to relays. Guarded by the `ADMIN_TOKEN` secret; the local copy is `~/.config/func/admin.token`. Body `{kind, content, tags?, relays?}`; `relays: []` is a dry run. The key never leaves Cloudflare. See `marketing/launch.md` for the curl.
 - Add a case to `test/blossom.mjs` for any behavior change, then `npm test` and `npm run deploy:media`.
 
 ## Constraints learned from live testing (Oct 2026)
 - Public relays that accept these kinds: damus, nos.lol, primal, snort. relay.nos.social rejects custom kinds. offchain.pub rejects large events from keys outside its web of trust.
 - Public Blossom hosts: only nostr.download accepts encrypted application/octet-stream. Primal, nostr.build/blossom.band, nostrcheck and 24242.io sniff content and reject non-images. Don't disguise ciphertext as image/jpeg. That is why we run `media.func.rsvp`.
 - Cloudflare: Worker cron triggers need the account to have a workers.dev subdomain (it is `mvc-corp.workers.dev`; no cron is used now). Passing `range: request.headers` to R2 `get` marks every response as ranged, so only pass it when the request has a `Range` header. Rate limit bindings only allow 10 s or 60 s periods and count per Cloudflare location, so treat them as approximate.
+
+## Marketing
+- `marketing/launch.md` has the positioning, channel plan, and post drafts for the first 100 users. Keep it current when posts go out.
 
 ## Conventions
 - Keep the output a single static file with no CDN script dependencies. Google Fonts is the only external request.

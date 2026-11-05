@@ -1,0 +1,5 @@
+/.well-known/nostr.json
+  Access-Control-Allow-Origin: *
+  Content-Type: application/json
+/og.png
+  Cache-Control: public, max-age=86400

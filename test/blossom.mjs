@@ -114,4 +114,17 @@ ok(r.status === 401 && !rlEnv.IP_LIMIT.counts.has('3.3.3.3'), 'bad auth is rejec
 r = await worker.fetch(new Request(BASE + '/upload', { method: 'PUT', headers: { Authorization: authFor('upload', sha(Buffer.from('nolimit'))), 'Content-Type': 'application/octet-stream' }, body: Buffer.from('nolimit') }), { BLOBS: new MockR2(), PUBLIC_URL: BASE });
 ok(r.status === 200, 'without rate limit bindings uploads still work (local dev)');
 
+// ---- official account publishing (signs in the Worker; relays: [] skips the network) ----
+import { nsecEncode } from 'nostr-tools/nip19';
+import { verifyEvent } from 'nostr-tools/pure';
+const offSk = generateSecretKey();
+const adminEnv = { BLOBS: new MockR2(), PUBLIC_URL: BASE, NOSTR_NSEC: nsecEncode(offSk), ADMIN_TOKEN: 'secret-token-123' };
+const pub = (token, body) => worker.fetch(new Request(BASE + '/admin/publish', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }), adminEnv);
+r = await pub('wrong-token-0000', { kind: 1, content: 'x', relays: [] }); ok(r.status === 401, 'admin publish rejects a wrong token');
+r = await pub('secret-token-123', { kind: 1, content: 'hello', tags: [['t', 'func']], relays: [] });
+j = await r.json();
+ok(r.status === 200 && j.event.pubkey === getPublicKey(offSk) && verifyEvent(j.event) && j.event.content === 'hello' && j.results.length === 0, 'admin publish signs with the official key and returns the event');
+r = await pub('secret-token-123', { kind: 'one', content: 'x', relays: [] }); ok(r.status === 400, 'admin publish validates the body');
+r = await worker.fetch(new Request(BASE + '/admin/publish', { method: 'POST', body: '{}' }), { BLOBS: new MockR2() }); ok(r.status === 401, 'admin publish is off when secrets are not configured');
+
 console.log(process.exitCode ? 'blossom tests FAILED' : 'blossom tests passed');

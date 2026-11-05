@@ -2,6 +2,9 @@
 
 Written 2026-11-05. Status that day: zero users. One room on our relay, created by us on launch night. Nothing live on public relays.
 
+## Log
+- 2026-11-05: official profile (kind 0) and launch note published from the Func account to relay.func.rsvp, nos.lol, primal and snort (damus refused the Worker's websocket handshake). Note id `0d5a71d449fc74a375b842297b541a788c35cf6ff6960033baa40e9d311b4461`. awesome-nostr pull request opened: https://github.com/aljazceru/awesome-nostr/pull/790.
+
 ## What counts
 
 A **user** is a distinct person who posted in a room (a distinct pubkey with a kind 4333 event). `node scripts/stats.mjs` reports it from our relay, and a nightly job appends the numbers to `~/Library/Application Support/func-relay/stats.csv`. Rooms expire, so the CSV is the only history.
